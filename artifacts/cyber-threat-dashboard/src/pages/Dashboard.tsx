@@ -30,6 +30,9 @@ export function Dashboard() {
   });
 
   const threats = liveThreats ?? [];
+  const attackers = Array.isArray(topAttackers) ? topAttackers : topAttackers?.data ?? [];
+  const targets = Array.isArray(topTargets) ? topTargets : topTargets?.data ?? [];
+  const news = Array.isArray(latestNews) ? latestNews : latestNews?.data ?? [];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "14px", padding: "14px 20px" }}>
@@ -74,7 +77,7 @@ export function Dashboard() {
                 Top Attacking Nations
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {(topAttackers ?? []).slice(0, 5).map((attacker, i) => (
+                {attackers.slice(0, 5).map((attacker, i) => (
                   <div key={attacker.countryCode} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <span style={{ fontSize: "10px", color: "#334155", width: "14px", fontFamily: "monospace" }}>{i + 1}</span>
                     <span style={{ fontSize: "13px" }}>{countryFlag(attacker.countryCode)}</span>
@@ -100,7 +103,7 @@ export function Dashboard() {
                 Most Targeted Nations
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {(topTargets ?? []).slice(0, 5).map((target, i) => (
+                {targets.slice(0, 5).map((target, i) => (
                   <div key={target.countryCode} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <span style={{ fontSize: "10px", color: "#334155", width: "14px", fontFamily: "monospace" }}>{i + 1}</span>
                     <span style={{ fontSize: "13px" }}>{countryFlag(target.countryCode)}</span>
@@ -123,13 +126,13 @@ export function Dashboard() {
           </div>
 
           {/* Latest News teaser */}
-          {latestNews && latestNews.length > 0 && (
+          {news && news.length > 0 && (
             <div className="stat-card" style={{ padding: "14px 16px" }}>
               <div style={{ fontSize: "10px", color: "#475569", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "10px" }}>
                 Latest Threat Intel
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {latestNews.slice(0, 3).map(article => (
+                {news.slice(0, 3).map(article => (
                   <div key={article.id} style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
                     {article.imageUrl && (
                       <img src={article.imageUrl} alt="" style={{ width: "44px", height: "32px", objectFit: "cover", borderRadius: "3px", flexShrink: 0, border: "1px solid hsl(222,18%,16%)" }} onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />

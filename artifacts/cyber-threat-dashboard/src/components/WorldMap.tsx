@@ -87,6 +87,7 @@ const SEV_COLORS: Record<string, string> = {
 function sevColor(s: string) { return SEV_COLORS[s] ?? "#14b8a6"; }
 
 export function WorldMap({ threats, onSelectThreat }: WorldMapProps) {
+  const threatList = Array.isArray(threats) ? threats : threats?.data ?? [];
   const [arcs, setArcs] = useState<ArcData[]>([]);
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
   const [activeCountries, setActiveCountries] = useState<{ attackers: Set<string>; targets: Set<string> }>({
@@ -99,21 +100,21 @@ export function WorldMap({ threats, onSelectThreat }: WorldMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (threats.length === 0) return;
+    if (threatList.length === 0) return;
     setActiveCountries({
-      attackers: new Set(threats.map(t => t.attackerCountryCode)),
-      targets: new Set(threats.map(t => t.targetCountryCode)),
+      attackers: new Set(threatList.map(t => t.attackerCountryCode)),
+      targets: new Set(threatList.map(t => t.targetCountryCode)),
     });
-  }, [threats]);
+  }, [threatList]);
 
   useEffect(() => {
-    if (threats.length === 0) return;
+    if (threatList.length === 0) return;
 
     const animate = () => {
       const now = Date.now();
 
-      if (now - lastAddRef.current > 900 && threats.length > 0) {
-        const threat = threats[arcIndexRef.current % threats.length];
+      if (now - lastAddRef.current > 900 && threatList.length > 0) {
+        const threat = threatList[arcIndexRef.current % threatList.length];
         arcIndexRef.current++;
         lastAddRef.current = now;
         setArcs(prev => [
@@ -137,7 +138,7 @@ export function WorldMap({ threats, onSelectThreat }: WorldMapProps) {
 
     animFrameRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animFrameRef.current);
-  }, [threats]);
+  }, [threatList]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGElement>, threat: ThreatEvent) => {
     const rect = containerRef.current?.getBoundingClientRect();

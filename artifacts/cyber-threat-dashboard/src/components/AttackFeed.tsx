@@ -22,6 +22,8 @@ interface AttackFeedProps {
 }
 
 export function AttackFeed({ threats, loading }: AttackFeedProps) {
+  const threatList = Array.isArray(threats) ? threats : threats?.data ?? [];
+  
   if (loading) {
     return (
       <div style={{ padding: "12px" }}>
@@ -34,7 +36,7 @@ export function AttackFeed({ threats, loading }: AttackFeedProps) {
 
   return (
     <div style={{ overflowY: "auto", maxHeight: "100%", scrollbarWidth: "thin" }}>
-      {threats.slice(0, 50).map((threat) => {
+      {threatList.slice(0, 50).map((threat) => {
         const color = getSeverityColor(threat.severity);
         return (
           <div

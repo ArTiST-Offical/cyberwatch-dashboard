@@ -81,12 +81,12 @@ export function Navbar({ currentPage, onNavigate }: NavbarProps) {
         <div style={{ flex: 1 }} />
 
         {/* Live indicator */}
-        {stats && (
+        {stats && stats.attacksPerMinute !== undefined && (
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <span style={{ fontSize: "11px", color: "#475569" }}>APM</span>
               <span style={{ fontSize: "13px", fontWeight: "600", color: "#14b8a6", fontFamily: "monospace" }}>
-                {stats.attacksPerMinute.toFixed(2)}
+                {(stats.attacksPerMinute ?? 0).toFixed(2)}
               </span>
             </div>
             <div style={{ width: "1px", height: "20px", background: "hsl(220, 15%, 18%)" }} />
