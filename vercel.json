@@ -1,20 +1,9 @@
 {
-  "buildCommand": "pnpm run build",
-  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "cd artifacts/cyber-threat-dashboard && npm run build",
+  "installCommand": "pnpm install",
   "env": {
     "PORT": "3000",
     "BASE_PATH": "/"
   },
-  "outputDirectory": "artifacts/cyber-threat-dashboard/dist/public",
-  "envPrefix": "VITE_",
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "destination": "/api/$1"
-    },
-    {
-      "src": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
+  "outputDirectory": "artifacts/cyber-threat-dashboard/dist/public"
 }
