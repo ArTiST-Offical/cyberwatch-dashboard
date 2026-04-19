@@ -105,6 +105,7 @@ export interface NewsArticle {
   tags: string[];
   severity?: NewsArticleSeverity;
   relatedCountries?: string[];
+  imageUrl?: string;
 }
 
 export type ThreatActorThreatLevel =

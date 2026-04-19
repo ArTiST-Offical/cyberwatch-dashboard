@@ -1,0 +1,43 @@
+# Environment files
+.env.local
+.env.*.local
+
+# Source maps in production
+*.map
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# Testing
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+
+# Documentation
+*.md
+docs/
+replit.md
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.circleci
+
+# Development only
+scripts/
+lib/
+
+# Artifacts that shouldn't deploy
+artifacts/mockup-sandbox
+artifacts/api-server
+
+# Lock files
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Node modules (Vercel doesnt need this)
+node_modules

@@ -75,7 +75,7 @@ export const getHealthCheckQueryOptions = <
     signal,
   }) => healthCheck({ signal, ...requestOptions });
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+  return { queryFn, ...queryOptions, queryKey } as const satisfies UseQueryOptions<
     Awaited<ReturnType<typeof healthCheck>>,
     TError,
     TData
@@ -166,7 +166,7 @@ export const getListThreatsQueryOptions = <
     signal,
   }) => listThreats(params, { signal, ...requestOptions });
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+  return { queryFn, ...queryOptions, queryKey } as const satisfies UseQueryOptions<
     Awaited<ReturnType<typeof listThreats>>,
     TError,
     TData
@@ -244,7 +244,7 @@ export const getGetLiveThreatsQueryOptions = <
     signal,
   }) => getLiveThreats({ signal, ...requestOptions });
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+  return { queryFn, ...queryOptions, queryKey } as const satisfies UseQueryOptions<
     Awaited<ReturnType<typeof getLiveThreats>>,
     TError,
     TData
@@ -319,7 +319,7 @@ export const getGetThreatStatsQueryOptions = <
     signal,
   }) => getThreatStats({ signal, ...requestOptions });
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+  return { queryFn, ...queryOptions, queryKey } as const satisfies UseQueryOptions<
     Awaited<ReturnType<typeof getThreatStats>>,
     TError,
     TData
@@ -394,7 +394,7 @@ export const getGetTopAttackersQueryOptions = <
     signal,
   }) => getTopAttackers({ signal, ...requestOptions });
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+  return { queryFn, ...queryOptions, queryKey } as const satisfies UseQueryOptions<
     Awaited<ReturnType<typeof getTopAttackers>>,
     TError,
     TData
@@ -469,7 +469,7 @@ export const getGetTopTargetsQueryOptions = <
     signal,
   }) => getTopTargets({ signal, ...requestOptions });
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+  return { queryFn, ...queryOptions, queryKey } as const satisfies UseQueryOptions<
     Awaited<ReturnType<typeof getTopTargets>>,
     TError,
     TData
@@ -544,7 +544,7 @@ export const getGetThreatsByTypeQueryOptions = <
     Awaited<ReturnType<typeof getThreatsByType>>
   > = ({ signal }) => getThreatsByType({ signal, ...requestOptions });
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+  return { queryFn, ...queryOptions, queryKey } as const satisfies UseQueryOptions<
     Awaited<ReturnType<typeof getThreatsByType>>,
     TError,
     TData
@@ -619,7 +619,7 @@ export const getGetThreatTimelineQueryOptions = <
     Awaited<ReturnType<typeof getThreatTimeline>>
   > = ({ signal }) => getThreatTimeline({ signal, ...requestOptions });
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+  return { queryFn, ...queryOptions, queryKey } as const satisfies UseQueryOptions<
     Awaited<ReturnType<typeof getThreatTimeline>>,
     TError,
     TData
@@ -710,7 +710,7 @@ export const getListCyberNewsQueryOptions = <
     signal,
   }) => listCyberNews(params, { signal, ...requestOptions });
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+  return { queryFn, ...queryOptions, queryKey } as const satisfies UseQueryOptions<
     Awaited<ReturnType<typeof listCyberNews>>,
     TError,
     TData
@@ -788,7 +788,7 @@ export const getGetTrendingThreatsQueryOptions = <
     Awaited<ReturnType<typeof getTrendingThreats>>
   > = ({ signal }) => getTrendingThreats({ signal, ...requestOptions });
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+  return { queryFn, ...queryOptions, queryKey } as const satisfies UseQueryOptions<
     Awaited<ReturnType<typeof getTrendingThreats>>,
     TError,
     TData

@@ -465,7 +465,7 @@ export async function fetchRealNews(limit = 50): Promise<RealNewsArticle[]> {
       try {
         const feed = await rss.parseURL(url);
         return (feed.items ?? []).slice(0, 15).map((item, i) => {
-          const desc = (item.contentSnippet ?? item.content ?? item.description ?? "").slice(0, 400);
+          const desc = (item.contentSnippet ?? item.content ?? (item as any).description ?? "").slice(0, 400);
           return {
             id: `rss-${source.replace(/\s+/g, "-").toLowerCase()}-${i}-${Date.now()}`,
             title: item.title ?? "Untitled",
