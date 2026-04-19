@@ -1,6 +1,6 @@
 {
   "buildCommand": "cd artifacts/cyber-threat-dashboard && npm run build",
-  "installCommand": "npm install -g pnpm && pnpm install --frozen-lockfile",
+  "installCommand": "npm install -g pnpm && pnpm install",
   "env": {
     "PORT": "3000",
     "BASE_PATH": "/",
