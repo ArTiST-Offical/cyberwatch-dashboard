@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { fetchFeodoThreats, fetchKevThreats, fetchRealNews, fetchRecentCves } from "./lib/realData";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +23,12 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Pre-warm real-data caches in background so first user request is instant
+  Promise.all([
+    fetchFeodoThreats().catch(e => logger.warn({ err: e }, "Feodo prewarm failed")),
+    fetchKevThreats().catch(e => logger.warn({ err: e }, "KEV prewarm failed")),
+    fetchRealNews(60).catch(e => logger.warn({ err: e }, "News prewarm failed")),
+    fetchRecentCves().catch(e => logger.warn({ err: e }, "CVE prewarm failed")),
+  ]).then(() => logger.info("Real-data caches pre-warmed")).catch(() => null);
 });

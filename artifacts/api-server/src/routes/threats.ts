@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, threatEventsTable, newsArticlesTable, threatActorsTable, cveEntriesTable } from "@workspace/db";
+import { db, threatEventsTable, threatActorsTable } from "@workspace/db";
 import { desc, gte, sql, eq, and, count } from "drizzle-orm";
 import {
   ListThreatsQueryParams,
@@ -14,6 +14,7 @@ import {
   ListCyberNewsResponseItem,
   GetTrendingThreatsResponse,
 } from "@workspace/api-zod";
+import { fetchFeodoThreats, fetchKevThreats, fetchRealNews, fetchRecentCves } from "../lib/realData";
 
 const router: IRouter = Router();
 
@@ -41,6 +42,7 @@ function formatThreatEvent(event: typeof threatEventsTable.$inferSelect) {
   };
 }
 
+// /threats — seeded DB (historical data)
 router.get("/threats", async (req, res): Promise<void> => {
   const parsed = ListThreatsQueryParams.safeParse(req.query);
   if (!parsed.success) {
@@ -49,14 +51,9 @@ router.get("/threats", async (req, res): Promise<void> => {
   }
 
   const { limit = 50, attackType, severity } = parsed.data;
-
   const conditions = [];
-  if (attackType) {
-    conditions.push(eq(threatEventsTable.attackType, attackType));
-  }
-  if (severity) {
-    conditions.push(eq(threatEventsTable.severity, severity));
-  }
+  if (attackType) conditions.push(eq(threatEventsTable.attackType, attackType));
+  if (severity) conditions.push(eq(threatEventsTable.severity, severity));
 
   const threats = await db
     .select()
@@ -68,183 +65,169 @@ router.get("/threats", async (req, res): Promise<void> => {
   res.json(threats.map(formatThreatEvent).map(e => ListThreatsResponseItem.parse(e)));
 });
 
+// /threats/live — REAL DATA: Feodo Tracker C2s + CISA KEV active exploits
 router.get("/threats/live", async (_req, res): Promise<void> => {
-  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-  const threats = await db
-    .select()
-    .from(threatEventsTable)
-    .where(gte(threatEventsTable.timestamp, fiveMinutesAgo))
-    .orderBy(desc(threatEventsTable.timestamp))
-    .limit(30);
+  const [feodoThreats, kevThreats] = await Promise.all([
+    fetchFeodoThreats(),
+    fetchKevThreats(),
+  ]);
 
-  res.json(threats.map(formatThreatEvent).map(e => GetLiveThreatsResponseItem.parse(e)));
+  // Combine: Feodo C2s first (confirmed botnet), then KEV (active exploits)
+  const combined = [
+    ...feodoThreats,
+    ...kevThreats,
+  ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  // Return latest 60 events, most recent first
+  const live = combined.slice(0, 60).map(t => ({
+    id: t.id,
+    timestamp: t.timestamp,
+    attackerCountry: t.attackerCountry,
+    attackerCountryCode: t.attackerCountryCode,
+    attackerIp: t.attackerIp,
+    attackerLat: t.attackerLat,
+    attackerLng: t.attackerLng,
+    targetCountry: t.targetCountry,
+    targetCountryCode: t.targetCountryCode,
+    targetLat: t.targetLat,
+    targetLng: t.targetLng,
+    attackType: t.attackType,
+    severity: t.severity as "critical" | "high" | "medium" | "low",
+    port: t.port,
+    protocol: t.protocol,
+    description: t.description,
+    technique: t.technique,
+    mitreTactic: t.mitreTactic,
+  }));
+
+  res.json(live.map(e => GetLiveThreatsResponseItem.parse(e)));
 });
 
+// /threats/stats — aggregated from Feodo + CISA KEV
 router.get("/threats/stats", async (_req, res): Promise<void> => {
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [feodoThreats, kevThreats] = await Promise.all([fetchFeodoThreats(), fetchKevThreats()]);
+  const allThreats = [...feodoThreats, ...kevThreats];
 
-  const [totalResult] = await db
-    .select({ count: count() })
-    .from(threatEventsTable)
-    .where(gte(threatEventsTable.timestamp, twentyFourHoursAgo));
+  const total = allThreats.length;
+  const critical = allThreats.filter(t => t.severity === "critical").length;
+  const high = allThreats.filter(t => t.severity === "high").length;
+  const medium = allThreats.filter(t => t.severity === "medium").length;
+  const low = allThreats.filter(t => t.severity === "low").length;
 
-  const severityCounts = await db
-    .select({
-      severity: threatEventsTable.severity,
-      count: count(),
-    })
-    .from(threatEventsTable)
-    .where(gte(threatEventsTable.timestamp, twentyFourHoursAgo))
-    .groupBy(threatEventsTable.severity);
+  const uniqueAttackers = new Set(allThreats.map(t => t.attackerCountryCode)).size;
+  const uniqueTargets = new Set(allThreats.map(t => t.targetCountryCode)).size;
+  const allCountries = new Set([
+    ...allThreats.map(t => t.attackerCountryCode),
+    ...allThreats.map(t => t.targetCountryCode),
+  ]).size;
 
-  const uniqueAttackers = await db
-    .selectDistinct({ code: threatEventsTable.attackerCountryCode })
-    .from(threatEventsTable)
-    .where(gte(threatEventsTable.timestamp, twentyFourHoursAgo));
+  const malwareCounts = allThreats.reduce<Record<string, number>>((acc, t) => {
+    const key = t.malwareFamily ?? t.attackType;
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+  const mostCommonAttackType = Object.entries(malwareCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "Malware C2";
 
-  const uniqueTargets = await db
-    .selectDistinct({ code: threatEventsTable.targetCountryCode })
-    .from(threatEventsTable)
-    .where(gte(threatEventsTable.timestamp, twentyFourHoursAgo));
+  const attacksPerMinute = parseFloat((total / (30 * 24 * 60)).toFixed(2));
 
-  const [topTypeResult] = await db
-    .select({
-      attackType: threatEventsTable.attackType,
-      count: count(),
-    })
-    .from(threatEventsTable)
-    .where(gte(threatEventsTable.timestamp, twentyFourHoursAgo))
-    .groupBy(threatEventsTable.attackType)
-    .orderBy(desc(count()))
-    .limit(1);
-
-  const allCountries = await db
-    .selectDistinct({ code: threatEventsTable.attackerCountryCode })
-    .from(threatEventsTable)
-    .where(gte(threatEventsTable.timestamp, twentyFourHoursAgo))
-    .union(
-      db
-        .selectDistinct({ code: threatEventsTable.targetCountryCode })
-        .from(threatEventsTable)
-        .where(gte(threatEventsTable.timestamp, twentyFourHoursAgo))
-    );
-
-  const total = totalResult?.count ?? 0;
-  const critical = severityCounts.find(s => s.severity === "critical")?.count ?? 0;
-  const high = severityCounts.find(s => s.severity === "high")?.count ?? 0;
-  const medium = severityCounts.find(s => s.severity === "medium")?.count ?? 0;
-  const low = severityCounts.find(s => s.severity === "low")?.count ?? 0;
-  const attacksPerMinute = parseFloat((total / (24 * 60)).toFixed(2));
-
-  const stats = {
+  res.json(GetThreatStatsResponse.parse({
     totalAttacks24h: total,
     criticalAttacks: critical,
     highAttacks: high,
     mediumAttacks: medium,
     lowAttacks: low,
     attacksPerMinute,
-    uniqueAttackers: uniqueAttackers.length,
-    uniqueTargets: uniqueTargets.length,
-    mostCommonAttackType: topTypeResult?.attackType ?? "Unknown",
-    totalCountriesAffected: allCountries.length,
-  };
-
-  res.json(GetThreatStatsResponse.parse(stats));
+    uniqueAttackers,
+    uniqueTargets,
+    mostCommonAttackType,
+    totalCountriesAffected: allCountries,
+  }));
 });
 
+// /threats/top-attackers — from Feodo + CISA KEV combined
 router.get("/threats/top-attackers", async (_req, res): Promise<void> => {
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [feodoThreats, kevThreats] = await Promise.all([fetchFeodoThreats(), fetchKevThreats()]);
+  const feodoThreats2 = [...feodoThreats, ...kevThreats];
 
-  const attackers = await db
-    .select({
-      country: threatEventsTable.attackerCountry,
-      countryCode: threatEventsTable.attackerCountryCode,
-      count: count(),
-    })
-    .from(threatEventsTable)
-    .where(gte(threatEventsTable.timestamp, twentyFourHoursAgo))
-    .groupBy(threatEventsTable.attackerCountry, threatEventsTable.attackerCountryCode)
-    .orderBy(desc(count()))
-    .limit(10);
+  const countryMap = feodoThreats2.reduce<Record<string, { name: string; count: number; malwares: Set<string> }>>((acc, t) => {
+    const cc = t.attackerCountryCode;
+    if (!acc[cc]) acc[cc] = { name: t.attackerCountry, count: 0, malwares: new Set() };
+    acc[cc].count++;
+    if (t.malwareFamily) acc[cc].malwares.add(t.malwareFamily);
+    return acc;
+  }, {});
 
-  const [totalResult] = await db
-    .select({ count: count() })
-    .from(threatEventsTable)
-    .where(gte(threatEventsTable.timestamp, twentyFourHoursAgo));
-  const total = totalResult?.count ?? 1;
-
-  const result = attackers.map(a => ({
-    country: a.country,
-    countryCode: a.countryCode,
-    attackCount: a.count,
-    percentage: parseFloat(((a.count / total) * 100).toFixed(1)),
-    topAttackTypes: ["DDoS", "SQL Injection", "Phishing"],
-  }));
+  const total = feodoThreats2.length || 1;
+  const result = Object.entries(countryMap)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 10)
+    .map(([cc, data]) => ({
+      country: data.name,
+      countryCode: cc,
+      attackCount: data.count,
+      percentage: parseFloat(((data.count / total) * 100).toFixed(1)),
+      topAttackTypes: Array.from(data.malwares).slice(0, 3),
+    }));
 
   res.json(result.map(r => GetTopAttackersResponseItem.parse(r)));
 });
 
+// /threats/top-targets — from Feodo + CISA KEV combined
 router.get("/threats/top-targets", async (_req, res): Promise<void> => {
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [feodoThreats, kevThreats] = await Promise.all([fetchFeodoThreats(), fetchKevThreats()]);
+  const allThreats2 = [...feodoThreats, ...kevThreats];
 
-  const targets = await db
-    .select({
-      country: threatEventsTable.targetCountry,
-      countryCode: threatEventsTable.targetCountryCode,
-      count: count(),
-    })
-    .from(threatEventsTable)
-    .where(gte(threatEventsTable.timestamp, twentyFourHoursAgo))
-    .groupBy(threatEventsTable.targetCountry, threatEventsTable.targetCountryCode)
-    .orderBy(desc(count()))
-    .limit(10);
+  const countryMap = allThreats2.reduce<Record<string, { name: string; count: number; malwares: Set<string> }>>((acc, t) => {
+    const cc = t.targetCountryCode;
+    if (!acc[cc]) acc[cc] = { name: t.targetCountry, count: 0, malwares: new Set() };
+    acc[cc].count++;
+    if (t.malwareFamily) acc[cc].malwares.add(t.malwareFamily);
+    return acc;
+  }, {});
 
-  const [totalResult] = await db
-    .select({ count: count() })
-    .from(threatEventsTable)
-    .where(gte(threatEventsTable.timestamp, twentyFourHoursAgo));
-  const total = totalResult?.count ?? 1;
-
-  const result = targets.map(t => ({
-    country: t.country,
-    countryCode: t.countryCode,
-    attackCount: t.count,
-    percentage: parseFloat(((t.count / total) * 100).toFixed(1)),
-    topAttackTypes: ["DDoS", "Malware", "Phishing"],
-  }));
+  const total = allThreats2.length || 1;
+  const result = Object.entries(countryMap)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 10)
+    .map(([cc, data]) => ({
+      country: data.name,
+      countryCode: cc,
+      attackCount: data.count,
+      percentage: parseFloat(((data.count / total) * 100).toFixed(1)),
+      topAttackTypes: Array.from(data.malwares).slice(0, 3),
+    }));
 
   res.json(result.map(r => GetTopTargetsResponseItem.parse(r)));
 });
 
+// /threats/by-type — from Feodo + CISA KEV combined
 router.get("/threats/by-type", async (_req, res): Promise<void> => {
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [feodoRaw, kevRaw] = await Promise.all([fetchFeodoThreats(), fetchKevThreats()]);
+  const byTypeThreats = [...feodoRaw, ...kevRaw];
 
-  const types = await db
-    .select({
-      attackType: threatEventsTable.attackType,
-      count: count(),
-    })
-    .from(threatEventsTable)
-    .where(gte(threatEventsTable.timestamp, twentyFourHoursAgo))
-    .groupBy(threatEventsTable.attackType)
-    .orderBy(desc(count()));
+  const typeMap = byTypeThreats.reduce<Record<string, { count: number; bySeverity: Record<string, number> }>>((acc, t) => {
+    const type = t.malwareFamily ?? t.attackType;
+    if (!acc[type]) acc[type] = { count: 0, bySeverity: { critical: 0, high: 0, medium: 0, low: 0 } };
+    acc[type].count++;
+    acc[type].bySeverity[t.severity] = (acc[type].bySeverity[t.severity] ?? 0) + 1;
+    return acc;
+  }, {});
 
-  const [totalResult] = await db
-    .select({ count: count() })
-    .from(threatEventsTable)
-    .where(gte(threatEventsTable.timestamp, twentyFourHoursAgo));
-  const total = totalResult?.count ?? 1;
-
-  const result = types.map(t => ({
-    attackType: t.attackType,
-    count: t.count,
-    percentage: parseFloat(((t.count / total) * 100).toFixed(1)),
-    severityBreakdown: { critical: 0, high: 0, medium: 0, low: 0 },
-  }));
+  const total = byTypeThreats.length || 1;
+  const result = Object.entries(typeMap)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 12)
+    .map(([type, data]) => ({
+      attackType: type,
+      count: data.count,
+      percentage: parseFloat(((data.count / total) * 100).toFixed(1)),
+      severityBreakdown: data.bySeverity,
+    }));
 
   res.json(result.map(r => GetThreatsByTypeResponseItem.parse(r)));
 });
 
+// /threats/timeline — from DB (seeded with hour spread)
 router.get("/threats/timeline", async (_req, res): Promise<void> => {
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
@@ -268,6 +251,7 @@ router.get("/threats/timeline", async (_req, res): Promise<void> => {
   })));
 });
 
+// /news — REAL DATA from multiple RSS feeds
 router.get("/news", async (req, res): Promise<void> => {
   const parsed = ListCyberNewsQueryParams.safeParse(req.query);
   if (!parsed.success) {
@@ -275,38 +259,36 @@ router.get("/news", async (req, res): Promise<void> => {
     return;
   }
 
-  const { limit = 20, category } = parsed.data;
-  const conditions = [];
-  if (category) {
-    conditions.push(eq(newsArticlesTable.category, category));
+  const { limit = 30, category } = parsed.data;
+  let articles = await fetchRealNews(60);
+
+  if (category && category !== "All") {
+    articles = articles.filter(a => a.category === category);
   }
 
-  const articles = await db
-    .select()
-    .from(newsArticlesTable)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(newsArticlesTable.publishedAt))
-    .limit(limit);
-
-  const result = articles.map(a => ({
-    id: a.externalId,
+  const result = articles.slice(0, limit).map(a => ({
+    id: a.id,
     title: a.title,
     summary: a.summary,
     url: a.url,
     source: a.source,
-    publishedAt: a.publishedAt.toISOString(),
+    publishedAt: a.publishedAt,
     category: a.category,
-    tags: JSON.parse(a.tags) as string[],
-    severity: a.severity as "critical" | "high" | "medium" | "low" | "info" | undefined,
-    relatedCountries: JSON.parse(a.relatedCountries) as string[],
+    tags: a.tags,
+    severity: (a.severity ?? "info") as "critical" | "high" | "medium" | "low" | "info",
+    relatedCountries: a.relatedCountries,
+    imageUrl: a.imageUrl,
   }));
 
   res.json(result.map(r => ListCyberNewsResponseItem.parse(r)));
 });
 
+// /news/trending — REAL CVEs from NVD + DB threat actors
 router.get("/news/trending", async (_req, res): Promise<void> => {
-  const actors = await db.select().from(threatActorsTable).limit(5);
-  const cves = await db.select().from(cveEntriesTable).orderBy(desc(cveEntriesTable.cvssScore)).limit(5);
+  const [actors, cves] = await Promise.all([
+    db.select().from(threatActorsTable).limit(5),
+    fetchRecentCves(),
+  ]);
 
   const result = {
     threatActors: actors.map(a => ({
@@ -324,12 +306,15 @@ router.get("/news/trending", async (_req, res): Promise<void> => {
       severity: c.severity,
       description: c.description,
       affectedSoftware: c.affectedSoftware,
-      publishedAt: c.publishedAt.toISOString(),
+      publishedAt: c.publishedAt,
       exploitAvailable: c.exploitAvailable,
     })),
     activeCampaigns: [
-      "Operation ShadowDragon", "PhantomNet Campaign", "BlueVault Intrusion Series",
-      "Lazarus APT Surge", "DarkSide Ransomware Wave",
+      "Operation ShadowDragon — APT28 targeting NATO infrastructure",
+      "PowMix Botnet — Czech workforce malware campaign",
+      "QakBot C2 Resurgence — US/UK financial sector",
+      "Grinex Hack — $13.7M cryptocurrency theft",
+      "Mirai Nexcorium — IoT DDoS botnet expansion",
     ],
   };
 

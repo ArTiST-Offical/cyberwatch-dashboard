@@ -165,6 +165,7 @@ export const ListCyberNewsResponseItem = zod.object({
   tags: zod.array(zod.string()),
   severity: zod.enum(["critical", "high", "medium", "low", "info"]).optional(),
   relatedCountries: zod.array(zod.string()).optional(),
+  imageUrl: zod.string().optional(),
 });
 export const ListCyberNewsResponse = zod.array(ListCyberNewsResponseItem);
 
