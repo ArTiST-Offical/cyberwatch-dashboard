@@ -3,13 +3,19 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Cyber Threat Intelligence Dashboard API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: threats
+    description: Cyber threat operations
+  - name: news
+    description: Cybersecurity news operations
+  - name: stats
+    description: Dashboard statistics operations
 paths:
   /healthz:
     get:
@@ -24,6 +30,163 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /threats:
+    get:
+      operationId: listThreats
+      tags: [threats]
+      summary: List all active cyber threats
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: attackType
+          in: query
+          schema:
+            type: string
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [critical, high, medium, low]
+      responses:
+        "200":
+          description: List of threats
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ThreatEvent"
+
+  /threats/live:
+    get:
+      operationId: getLiveThreats
+      tags: [threats]
+      summary: Get live attack feed (recent attacks in last 5 minutes)
+      responses:
+        "200":
+          description: Live attack events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ThreatEvent"
+
+  /threats/stats:
+    get:
+      operationId: getThreatStats
+      tags: [stats]
+      summary: Get threat statistics and summary counts
+      responses:
+        "200":
+          description: Threat statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreatStats"
+
+  /threats/top-attackers:
+    get:
+      operationId: getTopAttackers
+      tags: [stats]
+      summary: Get top attacking countries/IPs
+      responses:
+        "200":
+          description: Top attackers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CountryAttackStats"
+
+  /threats/top-targets:
+    get:
+      operationId: getTopTargets
+      tags: [stats]
+      summary: Get most targeted countries
+      responses:
+        "200":
+          description: Top targets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CountryAttackStats"
+
+  /threats/by-type:
+    get:
+      operationId: getThreatsByType
+      tags: [stats]
+      summary: Get attack counts grouped by attack type
+      responses:
+        "200":
+          description: Attacks grouped by type
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AttackTypeStats"
+
+  /threats/timeline:
+    get:
+      operationId: getThreatTimeline
+      tags: [stats]
+      summary: Get attack counts over time (last 24 hours, hourly)
+      responses:
+        "200":
+          description: Timeline data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimelinePoint"
+
+  /news:
+    get:
+      operationId: listCyberNews
+      tags: [news]
+      summary: Get latest cybersecurity news articles
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of news articles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NewsArticle"
+
+  /news/trending:
+    get:
+      operationId: getTrendingThreats
+      tags: [news]
+      summary: Get trending threat actors and CVEs
+      responses:
+        "200":
+          description: Trending threat intel
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrendingThreats"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +197,281 @@ components:
       required:
         - status
 
+    ThreatEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        attackerCountry:
+          type: string
+        attackerCountryCode:
+          type: string
+        attackerIp:
+          type: string
+        attackerLat:
+          type: number
+        attackerLng:
+          type: number
+        targetCountry:
+          type: string
+        targetCountryCode:
+          type: string
+        targetIp:
+          type: string
+        targetLat:
+          type: number
+        targetLng:
+          type: number
+        attackType:
+          type: string
+        severity:
+          type: string
+          enum: [critical, high, medium, low]
+        port:
+          type: integer
+        protocol:
+          type: string
+        description:
+          type: string
+        technique:
+          type: string
+        mitreTactic:
+          type: string
+      required:
+        - id
+        - timestamp
+        - attackerCountry
+        - attackerCountryCode
+        - attackerLat
+        - attackerLng
+        - targetCountry
+        - targetCountryCode
+        - targetLat
+        - targetLng
+        - attackType
+        - severity
+
+    ThreatStats:
+      type: object
+      properties:
+        totalAttacks24h:
+          type: integer
+        criticalAttacks:
+          type: integer
+        highAttacks:
+          type: integer
+        mediumAttacks:
+          type: integer
+        lowAttacks:
+          type: integer
+        attacksPerMinute:
+          type: number
+        uniqueAttackers:
+          type: integer
+        uniqueTargets:
+          type: integer
+        mostCommonAttackType:
+          type: string
+        totalCountriesAffected:
+          type: integer
+      required:
+        - totalAttacks24h
+        - criticalAttacks
+        - highAttacks
+        - mediumAttacks
+        - lowAttacks
+        - attacksPerMinute
+        - uniqueAttackers
+        - uniqueTargets
+        - mostCommonAttackType
+        - totalCountriesAffected
+
+    CountryAttackStats:
+      type: object
+      properties:
+        country:
+          type: string
+        countryCode:
+          type: string
+        attackCount:
+          type: integer
+        percentage:
+          type: number
+        topAttackTypes:
+          type: array
+          items:
+            type: string
+      required:
+        - country
+        - countryCode
+        - attackCount
+        - percentage
+        - topAttackTypes
+
+    AttackTypeStats:
+      type: object
+      properties:
+        attackType:
+          type: string
+        count:
+          type: integer
+        percentage:
+          type: number
+        severityBreakdown:
+          type: object
+          properties:
+            critical:
+              type: integer
+            high:
+              type: integer
+            medium:
+              type: integer
+            low:
+              type: integer
+          required:
+            - critical
+            - high
+            - medium
+            - low
+      required:
+        - attackType
+        - count
+        - percentage
+        - severityBreakdown
+
+    TimelinePoint:
+      type: object
+      properties:
+        hour:
+          type: string
+        count:
+          type: integer
+        critical:
+          type: integer
+        high:
+          type: integer
+      required:
+        - hour
+        - count
+        - critical
+        - high
+
+    NewsArticle:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        summary:
+          type: string
+        url:
+          type: string
+        source:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+        category:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        severity:
+          type: string
+          enum: [critical, high, medium, low, info]
+        relatedCountries:
+          type: array
+          items:
+            type: string
+      required:
+        - id
+        - title
+        - summary
+        - url
+        - source
+        - publishedAt
+        - category
+        - tags
+
+    TrendingThreats:
+      type: object
+      properties:
+        threatActors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThreatActor"
+        recentCves:
+          type: array
+          items:
+            $ref: "#/components/schemas/CveEntry"
+        activeCampaigns:
+          type: array
+          items:
+            type: string
+      required:
+        - threatActors
+        - recentCves
+        - activeCampaigns
+
+    ThreatActor:
+      type: object
+      properties:
+        name:
+          type: string
+        alias:
+          type: array
+          items:
+            type: string
+        originCountry:
+          type: string
+        motivation:
+          type: string
+        recentActivity:
+          type: string
+        targetSectors:
+          type: array
+          items:
+            type: string
+        threatLevel:
+          type: string
+          enum: [critical, high, medium, low]
+      required:
+        - name
+        - alias
+        - originCountry
+        - motivation
+        - recentActivity
+        - targetSectors
+        - threatLevel
+
+    CveEntry:
+      type: object
+      properties:
+        cveId:
+          type: string
+        cvssScore:
+          type: number
+        severity:
+          type: string
+        description:
+          type: string
+        affectedSoftware:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+        exploitAvailable:
+          type: boolean
+      required:
+        - cveId
+        - cvssScore
+        - severity
+        - description
+        - affectedSoftware
+        - publishedAt
+        - exploitAvailable
