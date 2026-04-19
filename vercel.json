@@ -1,9 +1,12 @@
 {
   "buildCommand": "cd artifacts/cyber-threat-dashboard && npm run build",
-  "installCommand": "pnpm install",
+  "installCommand": "npm install -g pnpm && pnpm install --frozen-lockfile",
   "env": {
     "PORT": "3000",
-    "BASE_PATH": "/"
+    "BASE_PATH": "/",
+    "NODE_OPTIONS": "--openssl-legacy-provider",
+    "npm_config_fetch_timeout": "60000",
+    "npm_config_fetch_retries": "5"
   },
   "outputDirectory": "artifacts/cyber-threat-dashboard/dist/public"
 }

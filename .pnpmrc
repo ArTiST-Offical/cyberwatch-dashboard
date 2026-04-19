@@ -1,0 +1,11 @@
+# pnpm configuration for reliable package installation
+registry=https://registry.npmjs.org/
+
+# Network settings
+fetch-timeout=60000
+fetch-retry-mintimeout=20000
+fetch-retry-maxtimeout=120000
+fetch-retries=5
+
+# SSL settings
+strict-ssl=true
